@@ -29,7 +29,7 @@ if [ ! -e "inputs.conf" ]; then
 fi
 
 cat << EOF > "inputs.conf"
-[monitor:///var/log/sulsricata/suricata_em331133/eve.json]
+[monitor:///var/log/suricata/suricata_em331133/eve.json]
 sourcetype = suricata
 disabled = 0
 EOF
