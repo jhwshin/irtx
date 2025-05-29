@@ -19,5 +19,5 @@ Splunk Server:
 ```bash
 cd irtx-main/shared
 
-sudo ./splunk-server.sh <SPLUNK_FORWARDER_IP>
+sudo ./splunk-server.sh <SPLUNK_SERVER_IP>
 ```
