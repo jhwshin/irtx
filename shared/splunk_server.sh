@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# check for args
+if [ -z "$1" ]; then
+    echo "usage: splunk-server.sh <SPLUNK_FORWARDER_IP>"
+    exit 1
+fi
+
 SPLUNK_FORWARDER_IP=$1
 SPLUNK_SERVER_PATH=/opt/splunk/etc/system/local
 
