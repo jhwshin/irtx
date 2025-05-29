@@ -3,7 +3,9 @@
 SPLUNK_SERVER_IP=$1
 SPLUNK_FORWARDER_PATH=/opt/splunkforwarder/etc/system/local
 
-# 1. set pfsense
+# 1. setup pfsense
+
+# create backup if it doesn't exist
 if [ ! -e "/cf/conf/config.xml.bak" ]; then
     mv /cf/conf/config.xml /cf/conf/config.xml.bak
 fi
@@ -15,6 +17,7 @@ sed -i '' "s|<remoteserver>.*</remoteserver>|<remoteserver>${SPLUNK_SERVER_IP}:9
 # 2. edit inputs.conf
 cd ${SPLUNK_FORWARDER_PATH}
 
+# create backup if it doesn't exist
 if [ ! -e "inputs.conf" ]; then
     mv inputs.conf inputs.conf.bak
 fi
@@ -26,6 +29,8 @@ disabled = 0
 EOF
 
 # 3. edit outputs.conf
+
+# create backup if it doesn't exist
 if [ ! -e "outputs.conf" ]; then
     mv outputs.conf outputs.conf.bak
 fi
@@ -38,4 +43,5 @@ defaultGroup=my_indexers
 server=${SPLUNK_SERVER_IP}:9997
 EOF
 
-#/opt/splunkforwarder/bin/splunk restart
+# restart
+/opt/splunkforwarder/bin/splunk restart

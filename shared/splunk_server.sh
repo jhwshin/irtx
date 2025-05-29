@@ -5,6 +5,7 @@ SPLUNK_SERVER_PATH=/opt/splunk/etc/system/local
 
 cd ${SPLUNK_SERVER_PATH}
 
+# create backup if it doesn't exist
 if [ ! -e "inputs.conf" ]; then
     mv inputs.conf inputs.conf.bak
 fi
@@ -17,4 +18,5 @@ connection_host = none
 compressed = true
 EOF
 
-#/opt/splunk/bin/splunk restart
+# restart
+/opt/splunk/bin/splunk restart
