@@ -1,0 +1,140 @@
+#!/usr/bin/env bash
+
+readonly SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_AUTHOR="jhwshin"
+readonly SCRIPT_VERSION="1.0.0"
+
+# Colors for output
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[0;33m'
+readonly NC='\033[0m' # No Color
+
+# init variables and defaults
+VERBOSE=false
+
+# help prompt
+usage() {
+    cat << EOF
+${SCRIPT_NAME} v${SCRIPT_VERSION} by ${SCRIPT_AUTHOR}
+
+Usage: ${SCRIPT_NAME} [OPTIONS] <input_file> [<output_dir]
+
+Description ...
+
+Required Arguments:
+    input-file              ...
+
+Optional Arugments:
+    -a --a-flag             ...
+    -b --b-arg <ARG>        ...
+    -h --help               ...
+    -v --verbose            ...
+    -V --version            ...
+
+Examples:
+    ${SCRIPT_NAME} ...
+    ${SCRIPT_NAME} ...
+EOF
+}
+
+# options
+SHORT_OPTS="ab:hvV"
+LONG_OPTS="a-flag,b-arg,help,verbose,version"
+
+# print
+# error() {}
+# error <OUTPUT>
+
+# validate
+# validate_ip() {}
+# validate_ip <IP>
+
+parse_args() {
+    local opts
+    opts=$(getopt \
+            -o "${SHORT_OPTS}" \
+            --long "${LONG_OPTS}" \
+            -n "${SCRIPT_NAME}" \
+            -- "$@") || {
+                usage
+                exit 2
+            }
+    eval set -- "${opts}"
+
+    while true; do
+        case "$1" in
+            -a | --a-flag)
+                A_FLAG=true
+                echo "a FLAG SET"
+                shift
+            ;;
+            -b | --b-arg)
+                B_ARG="$2"
+                echo "b with ARG: $2"
+                shift 2
+            ;;
+            -h | --help)
+                usage
+                exit 0
+            ;;
+            -v | --verbose)
+                VERBOSE=true
+                echo "VERBOSE SET"
+                shift
+            ;;
+            -V | --version)
+                echo "${SCRIPT_NAME} v${SCRIPT_VERSION}"
+                exit 0
+            ;;
+            --)
+                shift
+                break
+            ;;
+            *)
+                echo "what? $1"
+                exit 3
+            ;;
+        esac
+    done
+
+    # Parse remaining positional arguments
+    if [[ $# -lt 1 ]]; then
+        error "Missing required argument: input-file"
+        usage
+        exit 2
+    fi
+
+
+    INPUT_FILE="$1"
+    shift
+
+    if [[ $# -gt 0 ]]; then
+        OUTPUT_DIR="$1"
+        shift
+    fi
+
+    # Set default for output directory if not specified
+    if [[ -z "${OUTPUT_DIR}" ]]; then
+        OUTPUT_DIR="."
+    fi
+
+    # Validate arguments
+    validate_file "${INPUT_FILE}" "input-file"
+    validate_dir "${OUTPUT_DIR}" "output-dir" true
+    validate_number "${NUM_THREADS}" 1 64 "--threads"
+
+    # Check for unexpected arguments
+    if [[ $# -gt 0 ]]; then
+        warn "Ignoring unexpected arguments: $*"
+    fi
+}
+
+# main
+main() {
+    parse_args "$@"
+}
+
+
+
+main "$@"
