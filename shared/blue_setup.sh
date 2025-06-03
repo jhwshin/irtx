@@ -102,5 +102,6 @@ setup_server() {
 
 sudo apt update && sudo apt install sshpass
 
-setup_forwarder
 setup_server $1
+setup_forwarder
+
