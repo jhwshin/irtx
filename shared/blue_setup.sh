@@ -100,7 +100,7 @@ setup_server() {
     echo -e "> Server Setup Complete!\n"
 }
 
-sudo apt update && sudo apt install sshpass
+sudo apt update && sudo apt install -y sshpass
 
 setup_server $1
 setup_forwarder
