@@ -68,7 +68,7 @@ OUTPUT_EOF
 sed -i '' "s|<remoteserver>.*</remoteserver>|<remoteserver>${SPLUNK_SERVER}:9997</remoteserver>|" "${PFSENSE_CONF_PATH}"
 
 # Restart services
-/etc/rc.restart_webgui
+/etc/rc.reload_all
 /opt/splunkforwarder/bin/splunk restart
 EOF
     )
