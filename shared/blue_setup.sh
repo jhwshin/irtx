@@ -48,7 +48,7 @@ setup_forwarder() {
 set -e
 
 # generate pfsense config
-curl -k http://localhost
+curl http://localhost > /dev/null
 
 # Backup
 cp "${FORWARDER_INPUT_PATH}" "${FORWARDER_INPUT_PATH}.bak"
