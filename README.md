@@ -1,23 +1,33 @@
 # irtx
 
-If `git` is not installed, use `curl`:
-```bash
-curl -L -O https://github.com/jhwshin/irtx/archive/refs/heads/main.zip
 
-# unzip repo
-unzip main.zip
+## Blue Team
+
+### Setup
+
+Script will setup:
+ - `Splunk` Server
+ - `Splunk Forwarder` on `pFSense`
+ - Forward `syslogs` on `Metasploitable` to `Splunk`
+ - Forward `syslogs` on `Blackbox` to `Splunk`
+
+1. Clone repo from __Splunk Server Machine__
+```bash
+# install git
+sudo apt install git
+
+# clone repo
+git clone https://github.com/jhwshin/irtx
+
+# run script and input splunk creds when prompted
+cd irtx/shared
+sudo blue_setup.sh <SPLUNK_IP>
 ```
 
-Splunk Forwarder:
-```bash
-cd irtx-main/shared
+2. Enable Splunk to receive syslogs:
 
-./splunk-forwarder.sh <SPLUNK_SERVER_IP>
-```
+`Settings > Data Inputs > UDP > New Local UDP`
 
-Splunk Server:
-```bash
-cd irtx-main/shared
+`Port > 514 (UDP) > Next`
 
-sudo ./splunk-server.sh <SPLUNK_SERVER_IP>
-```
+`Select Source Type > Operating System > syslog > Review > Submit`
