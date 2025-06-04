@@ -1,118 +1,164 @@
 #!/usr/bin/env bash
 
-SPLUNK_SERVER=$1
+setup_pfsense() {
+    echo -e "> Setting up Splunk Forwarder on pfSense ...\n"
 
-# ----------------------------------------------------------
-#   SERVER VARIABLES
-# ----------------------------------------------------------
+    PFSENSE_IP=$1
+    PFSENSE_CONF="/cf/conf/config.xml"
+    USERNAME="root"
+    PASSWORD="labadmin"
 
-# inputs.conf
-SPLUNK_SERVER_INPUT_PATH="/opt/splunk/etc/system/local/inputs.conf"
-SPLUNK_SERVER_INPUT="[splunktcp://${SPLUNK_SERVER}:9997]
+    SPLUNK_IP=$2
+    SPLUNK_CONF_PATH="/opt/splunkforwarder/etc/system/local"""
+
+    sshpass -p ${PASSWORD} ssh -o StrictHostKeyChecking=no ${USERNAME}@${PFSENSE_IP} << EOF
+#!/bin/sh
+
+curl -s http://localhost > /dev/null
+
+cp "${PFSENSE_CONF}" "${PFSENSE_CONF}.bak"
+
+sed -i "" "s|<remoteserver>.*</remoteserver>|<remoteserver>${SPLUNK_IP}:9997</remoteserver>|" "${PFSENSE_CONF}"
+
+cp "${SPLUNK_CONF_PATH}/inputs.conf" "${SPLUNK_CONF_PATH}/inputs.conf.bak"
+cp "${SPLUNK_CONF_PATH}/outputs.conf" "${SPLUNK_CONF_PATH}/outputs.conf.bak"
+
+cat > "${SPLUNK_CONF_PATH}/inputs.conf" << "INPUTS_EOF"
+[monitor:///var/log/suricata/suricata_em331133/eve.json]
+sourcetype = suricata
+disabled = 0
+INPUTS_EOF
+
+cat > "${SPLUNK_CONF_PATH}/outputs.conf" << "OUTPUTS_EOF"
+[tcpout]
+defaultGroup=my_indexers
+
+[tcpout:my_indexers]
+server=${SPLUNK_IP}:9997
+OUTPUTS_EOF
+
+cat > "${SPLUNK_CONF_PATH}/limits.conf" << "LIMITS_EOF"
+[thruput]
+maxKBps = 1024
+LIMITS_EOF
+
+: > /var/log/suricata/suricata_em331133/eve.json
+
+/opt/splunkforwarder/bin/splunk restart
+/etc/rc.reload_all
+EOF
+
+    echo -e "\n> Splunk Forwarder on pfSense Setup Complete!\n"
+}
+
+setup_splunk_server() {
+    echo -e "> Setting up Splunk Server ...\n"
+
+    SPLUNK_IP=$1
+
+    SPLUNK_CONF="/opt/splunk/etc/system/local/inputs.conf"
+
+    # backup config
+    cp "${SPLUNK_CONF}" "${SPLUNK_CONF}.bak"
+
+    cat << EOF > "${SPLUNK_CONF}"
+[splunktcp://${SPLUNK_IP}:9997]
 disabled = 0
 sourcetype = suricata
 connection_host = none
 compressed = true
-"
+EOF
+    # reload splunk input and output
+    /opt/splunk/bin/splunk reload tcp udp
 
-# ----------------------------------------------------------
-#   FORWARDER VARIABLES
-# ----------------------------------------------------------
+    echo -e "\n> Splunk Server Setup Complete!\n"
+}
 
-PFSENSE_SERVER="192.168.0.1"
-PFSENSE_USER="admin"
-PFSENSE_PASS="labadmin"
+setup_metasploitable() {
+    echo -e "> Setting up syslog on Metasploitable ...\n"
 
-# config.xml
-PFSENSE_CONF_PATH="/cf/conf/config.xml"
+    METASPLOITABLE_IP=$1
+    SPLUNK_IP=$2
 
-# inputs.conf
-FORWARDER_INPUT_PATH="/opt/splunkforwarder/etc/system/local/inputs.conf"
-FORWARDER_INPUT="[monitor:///var/log/suricata/suricata_em331133/eve.json]
-sourcetype = suricata
-disabled = 0
-"
+    USERNAME="msfadmin"
+    PASSWORD="msfadmin"
+    SYSLOG_CONF="/etc/syslog.conf"
 
-# outputs.conf
-FORWARDER_OUTPUT_PATH="/opt/splunkforwarder/etc/system/local/outputs.conf"
-FORWARDER_OUTPUT="[tcpout]
-defaultGroup=my_indexers
+    REMOTE_SCRIPT=$(cat << EOF
+#!/bin/bash
 
-[tcpout:my_indexers]
-server=${SPLUNK_SERVER}:9997
-"
+cp "${SYSLOG_CONF}" "${SYSLOG_CONF}.bak"
 
-setup_splunk_forwarder() {
-    echo -e "> Setting up Forwarder...\n"
+grep -qxF "*.* @${SPLUNK_IP}" "${SYSLOG_CONF}" || echo "*.* @${SPLUNK_IP}" >> "${SYSLOG_CONF}"
 
-    REMOTE_SCRIPT=$(cat <<EOF
-set -e
-
-# generate pfsense config
-curl http://localhost > /dev/null
-
-# Backup
-cp "${FORWARDER_INPUT_PATH}" "${FORWARDER_INPUT_PATH}.bak"
-cp "${FORWARDER_OUTPUT_PATH}" "${FORWARDER_OUTPUT_PATH}.bak"
-cp "${PFSENSE_CONF_PATH}" "${PFSENSE_CONF_PATH}.bak"
-
-# Write configs
-cat > "${FORWARDER_INPUT_PATH}" << 'INPUT_EOF'
-${FORWARDER_INPUT}
-INPUT_EOF
-
-cat > "${FORWARDER_OUTPUT_PATH}" << 'OUTPUT_EOF'
-${FORWARDER_OUTPUT}
-OUTPUT_EOF
-
-# Modify config
-sed -i '' "s|<remoteserver>.*</remoteserver>|<remoteserver>${SPLUNK_SERVER}:9997</remoteserver>|" "${PFSENSE_CONF_PATH}"
-
-# Restart services (suricata, pfsense and splunk forwarder)
-/usr/local/etc/rc.d/suricata onerestart
-/etc/rc.reload_all
-/opt/splunkforwarder/bin/splunk restart
+/etc/init.d/sysklogd restart
 EOF
     )
 
-    sshpass -p "${PFSENSE_PASS}" \
-    ssh -o StrictHostKeyChecking=no "${PFSENSE_USER}@${PFSENSE_SERVER}" /bin/sh <<< "${REMOTE_SCRIPT}"
+    sshpass -p "${PASSWORD}" ssh -o StrictHostKeyChecking=no ${USERNAME}@${METASPLOITABLE_IP} "cat > run; chmod +x run" <<< "${REMOTE_SCRIPT}"
 
-    echo -e "> Forwarder Setup Complete!\n"
+    sshpass -p "${PASSWORD}" ssh -o StrictHostKeyChecking=no ${USERNAME}@${METASPLOITABLE_IP} "echo ${PASSWORD} | sudo -S -p '' ./run; rm ./run"
+
+    echo -e "\n> Syslog on Metasploitable Setup Complete!\n"
 }
 
-setup_server() {
-    echo -e "> Setting up Server...\n"
+setup_blackbox() {
+    echo -e "> Setting up syslog on Blackbox ...\n"
+
+    BLACKBOX_IP=$1
+    SPLUNK_IP=$2
+
+    USERNAME="bobdabuilder"
+    PASSWORD="iamblackbox"
+    SYSLOG_CONF="/etc/rsyslog.conf"
+
+    REMOTE_SCRIPT=$(cat << EOF
+#!/bin/bash
+
+cp "${SYSLOG_CONF}" "${SYSLOG_CONF}.bak"
+
+grep -qxF "*.* @${SPLUNK_IP}" "${SYSLOG_CONF}" || echo "*.* @${SPLUNK_IP}" >> "${SYSLOG_CONF}"
+
+systemctl restart rsyslog
+EOF
+    )
+
+    sshpass -p "${PASSWORD}" ssh -p 2222 -o StrictHostKeyChecking=no ${USERNAME}@${BLACKBOX_IP} "cat > run; chmod +x run" <<< "${REMOTE_SCRIPT}"
+
+    sshpass -p "${PASSWORD}" ssh -p 2222 -o StrictHostKeyChecking=no ${USERNAME}@${BLACKBOX_IP} "echo ${PASSWORD} | sudo -S -p '' ./run; rm ./run"
+
+    echo -e "\n> Syslog on Blackbox Setup Complete!\n"
+}
+
+setup_init() {
+    echo -e "> Setting up Local Machine ...\n"
+
+    sudo apt update && sudo apt install -y sshpass
+
+    echo -e "\n> Local Machine Setup Complete!\n"
+}
+
+main() {
+    echo -e ">> Setting up Blue Team..."
 
     # usage
     if [ -z "$1" ]; then
-        echo "usage: $0 <SPLUNK_SERVER_IP>"
+        echo "usage: $0 <SPLUNK_IP>"
         exit 1
     fi
 
-    # backup
-    cp "${SPLUNK_SERVER_INPUT_PATH}" "${SPLUNK_SERVER_INPUT_PATH}.bak"
+    SPLUNK_IP=$1
+    PFSENSE_IP="192.168.0.1"
+    METASPLOITABLE_IP="10.30.0.235"
+    BLACKBOX_IP="10.30.0.250"
 
-    echo "${SPLUNK_SERVER_INPUT}" > ${SPLUNK_SERVER_INPUT_PATH}
+    setup_init
+    setup_metasploitable "${METASPLOITABLE_IP}" "${SPLUNK_IP}"
+    setup_blackbox "${BLACKBOX_IP}" "${SPLUNK_IP}"
+    setup_pfsense "${PFSENSE_IP}" "${SPLUNK_IP}"
+    setup_splunk_server "${SPLUNK_IP}"
 
-    # restart server
-    /opt/splunk/bin/splunk restart
-
-    echo -e "> Server Setup Complete!\n"
+    echo -e ">> Blue Team Setup Complete!\n"
 }
 
-setup_machine() {
-
-    echo -e "> Installing Applications ...\n"
-
-    sudo apt update && sudo apt install -y sshpass && sync && wait
-
-    echo -e "> Applications Installed!\n"
-}
-
-echo -e "> Setting up Blue Team...\n"
-
-setup_splunk_server $1
-setup_splunk_forwarder
-
-echo -e "> Blue Team Setup Complete!\n"
+main "$@"
