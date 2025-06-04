@@ -6,9 +6,9 @@ SPLUNK_SERVER=$1
 #   SERVER VARIABLES
 # ----------------------------------------------------------
 
+# inputs.conf
 SPLUNK_SERVER_INPUT_PATH="/opt/splunk/etc/system/local/inputs.conf"
-SPLUNK_SERVER_INPUT="
-[splunktcp://${SPLUNK_SERVER}:9997]
+SPLUNK_SERVER_INPUT="[splunktcp://${SPLUNK_SERVER}:9997]
 disabled = 0
 sourcetype = suricata
 connection_host = none
@@ -23,25 +23,26 @@ PFSENSE_SERVER="192.168.0.1"
 PFSENSE_USER="admin"
 PFSENSE_PASS="labadmin"
 
+# config.xml
 PFSENSE_CONF_PATH="/cf/conf/config.xml"
 
+# inputs.conf
 FORWARDER_INPUT_PATH="/opt/splunkforwarder/etc/system/local/inputs.conf"
-FORWARDER_INPUT="
-[monitor:///var/log/suricata/suricata_em331133/eve.json]
+FORWARDER_INPUT="[monitor:///var/log/suricata/suricata_em331133/eve.json]
 sourcetype = suricata
 disabled = 0
 "
 
+# outputs.conf
 FORWARDER_OUTPUT_PATH="/opt/splunkforwarder/etc/system/local/outputs.conf"
-FORWARDER_OUTPUT="
-[tcpout]
+FORWARDER_OUTPUT="[tcpout]
 defaultGroup=my_indexers
 
 [tcpout:my_indexers]
 server=${SPLUNK_SERVER}:9997
 "
 
-setup_forwarder() {
+setup_splunk_forwarder() {
     echo -e "> Setting up Forwarder...\n"
 
     REMOTE_SCRIPT=$(cat <<EOF
@@ -64,10 +65,11 @@ cat > "${FORWARDER_OUTPUT_PATH}" << 'OUTPUT_EOF'
 ${FORWARDER_OUTPUT}
 OUTPUT_EOF
 
-# Modify config (IP already expanded)
+# Modify config
 sed -i '' "s|<remoteserver>.*</remoteserver>|<remoteserver>${SPLUNK_SERVER}:9997</remoteserver>|" "${PFSENSE_CONF_PATH}"
 
-# Restart services
+# Restart services (suricata, pfsense and splunk forwarder)
+/usr/local/etc/rc.d/suricata onerestart
 /etc/rc.reload_all
 /opt/splunkforwarder/bin/splunk restart
 EOF
@@ -77,7 +79,6 @@ EOF
     ssh -o StrictHostKeyChecking=no "${PFSENSE_USER}@${PFSENSE_SERVER}" /bin/sh <<< "${REMOTE_SCRIPT}"
 
     echo -e "> Forwarder Setup Complete!\n"
-
 }
 
 setup_server() {
@@ -100,8 +101,18 @@ setup_server() {
     echo -e "> Server Setup Complete!\n"
 }
 
-sudo apt update && sudo apt install -y sshpass
+setup_machine() {
 
-setup_server $1
-setup_forwarder
+    echo -e "> Installing Applications ...\n"
 
+    sudo apt update && sudo apt install -y sshpass && sync && wait
+
+    echo -e "> Applications Installed!\n"
+}
+
+echo -e "> Setting up Blue Team...\n"
+
+setup_splunk_server $1
+setup_splunk_forwarder
+
+echo -e "> Blue Team Setup Complete!\n"
